@@ -1,0 +1,34 @@
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: formedia
+      MYSQL_USER: formedia
+      MYSQL_PASSWORD: formedia
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p root"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  links_store:
+    build: ./links_store
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_DSN: "formedia:formedia@tcp(mysql:3306)/formedia?parseTime=true"
+    ports:
+      - "8080:8080"
+
+  helper:
+    build: ./helper
+    depends_on:
+      - links_store
+    environment:
+      LINKS_STORE_URL: "http://links_store:8080"
