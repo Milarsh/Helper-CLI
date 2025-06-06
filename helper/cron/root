@@ -1,0 +1,1 @@
+*/5 * * * *   /app/helper update >> /var/log/cron.log 2>&1

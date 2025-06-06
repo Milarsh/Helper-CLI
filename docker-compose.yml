@@ -15,6 +15,8 @@ services:
       timeout: 3s
       retries: 12
       start_period: 10s
+    volumes:
+      - ./db_storage:/var/lib/mysql
 
   links_store:
     build: ./links_store
@@ -29,6 +31,23 @@ services:
   helper:
     build: ./helper
     depends_on:
-      - links_store
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
     environment:
+      DB_DSN: "formedia:formedia@tcp(mysql:3306)/formedia?parseTime=true"
       LINKS_STORE_URL: "http://links_store:8080"
+
+  articles:
+    build: ./articles
+    depends_on:
+      mysql:
+        condition: service_healthy
+      links_store:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      DB_DSN: "formedia:formedia@tcp(mysql:3306)/formedia?parseTime=true"
+      PORT: "8081"
+    ports:
+      - "8081:8081"

@@ -2,17 +2,27 @@ package main
 
 import (
 	"bufio"
+	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"helper/feeds"
 	"helper/links_client"
 	"helper/text"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "update" {
+		updateOnce()
+		return
+	}
+
 	reader := bufio.NewScanner(os.Stdin)
 
 	fmt.Println("Команды:  rss   |   stats   |   md2html   |   help")
@@ -32,6 +42,58 @@ func main() {
 	default:
 		printHelp()
 	}
+}
+
+func updateOnce() error {
+	links, err := links_client.List()
+	if err != nil {
+		return err
+	}
+
+	db, err := sql.Open("mysql", os.Getenv("DB_DSN"))
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	const schema = `
+		CREATE TABLE IF NOT EXISTS articles (
+			id            BIGINT PRIMARY KEY AUTO_INCREMENT,
+			link_id       BIGINT NOT NULL,
+			title         TEXT    NOT NULL,
+			url           TEXT NOT NULL,
+			published_at  DATETIME NOT NULL,
+			UNIQUE KEY uq_link_url (link_id, url(191)),
+			FOREIGN KEY (link_id) REFERENCES links(id) ON DELETE CASCADE
+		);`
+	if _, err := db.Exec(schema); err != nil {
+		return fmt.Errorf("create table: %w", err)
+	}
+
+	ins, _ := db.Prepare(`
+    	INSERT INTO articles (link_id,title,url,published_at)
+    	VALUES (?,?,?,?)
+    	ON DUPLICATE KEY UPDATE id = id`)
+	if err != nil {
+		return err
+	}
+	defer ins.Close()
+
+	for _, l := range links {
+		items, err := feeds.ParseRSS(l.URL, 5)
+		if err != nil {
+			log.Printf("rss %d: %v", l.ID, err)
+			continue
+		}
+		for _, it := range items {
+			t := time.Now()
+			if it.PublishedParsed != nil {
+				t = *it.PublishedParsed
+			}
+			_, _ = ins.Exec(l.ID, it.Title, it.Link, t)
+		}
+	}
+	return nil
 }
 
 func runRSS(reader *bufio.Scanner) {

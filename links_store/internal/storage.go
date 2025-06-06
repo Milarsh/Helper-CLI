@@ -31,10 +31,11 @@ func New() (*Store, error) {
 
 	const schema = `
 	CREATE TABLE IF NOT EXISTS links (
-		id    BIGINT PRIMARY KEY AUTO_INCREMENT,
-		url   TEXT NOT NULL,
-		label TEXT NOT NULL
-	);`
+    id    BIGINT PRIMARY KEY AUTO_INCREMENT,
+    url   VARCHAR(2048) NOT NULL,
+    label VARCHAR(255)  NOT NULL,
+    UNIQUE KEY uq_url (url(191))
+);`
 	if _, err := db.Exec(schema); err != nil {
 		db.Close()
 		return nil, err

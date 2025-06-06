@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 func Routes(store *Store) http.Handler {
@@ -67,6 +68,10 @@ func createHandler(store *Store, w http.ResponseWriter, r *http.Request) {
 
 	id, err := store.Add(Link{URL: req.URL, Label: req.Label})
 	if err != nil {
+		if strings.Contains(err.Error(), "Duplicate entry") {
+			http.Error(w, "this feed is already stored", http.StatusConflict)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
